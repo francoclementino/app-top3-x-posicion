@@ -1,8 +1,8 @@
-streamlit==1.29.0
-pandas==2.1.3
-matplotlib==3.8.2
-mplsoccer==1.3.0
-Pillow==10.1.0
-requests==2.31.0
-openpyxl==3.1.2
-numpy==1.24.3
+streamlit
+pandas
+matplotlib
+mplsoccer
+Pillow
+requests
+openpyxl
+numpy
