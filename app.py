@@ -33,6 +33,7 @@ st.markdown("""
         padding: 15px;
         border-radius: 10px;
         border: 1px solid #dee2e6;
+        margin-bottom: 15px;
     }
     .player-card {
         background-color: #f8f9fa;
@@ -41,14 +42,31 @@ st.markdown("""
         margin: 5px 0;
         border-left: 4px solid #4CAF50;
     }
+    .position-section {
+        background-color: #e9ecef;
+        padding: 10px;
+        border-radius: 8px;
+        margin: 10px 0;
+    }
 </style>
 """, unsafe_allow_html=True)
+
+# Inicializar session state
+if 'selected_players' not in st.session_state:
+    st.session_state.selected_players = {
+        'Arquero': [],
+        'Defensor Central': [],
+        'Lateral Izquierdo': [],
+        'Lateral Derecho': [],
+        'Mediocampista': [],
+        'Delantero': []
+    }
 
 # Header principal
 st.markdown("""
 <div class="main-header">
     <h1>⚽ SCOUT APP - EQUIPO 11 IDEAL</h1>
-    <p>Selecciona tu TOP 3 por posición en cada liga</p>
+    <p>Selecciona manualmente tu TOP 3 por posición</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -70,121 +88,180 @@ def extract_year_from_date(date_str):
     try:
         if pd.isna(date_str):
             return None
-        # Si ya es datetime, extraer año
         if isinstance(date_str, datetime):
             return date_str.year
-        # Si es string, parsear
         date_obj = pd.to_datetime(date_str)
         return date_obj.year
     except:
         return None
 
-# Simulación de datos (reemplazar con tu Excel)
-@st.cache_data
-def load_sample_data():
-    data = {
-        'Jugador': ['Jorge de Asis', 'Luciano Sábato', 'Agustín Obregon', 'Facundo Kalinger', 
-                   'Santiago Zampieri', 'Gonzalo Zelarayán', 'Facundo Pimienta', 'Samuel Beltrán',
-                   'Faustino Messina', 'Facundo Herrera', 'Lautaro Espeche'],
-        'Posición': ['Delantero', 'Delantero', 'Lateral Derecho', 'Lateral Izquierdo',
-                    'Lateral Izquierdo', 'Mediocampista', 'Mediocampista', 'Defensor Central',
-                    'Defensor Central', 'Defensor Central', 'Arquero'],
-        'altura': [1.78, 1.82, 1.75, 1.80, 1.77, 1.85, 1.83, 1.88, 1.90, 1.79, 1.85],
-        'areaNacimiento_nombre': ['Argentina', 'Argentina', 'Argentina', 'Argentina',
-                                 'Argentina', 'Argentina', 'Argentina', 'Argentina',
-                                 'Argentina', 'Argentina', 'Argentina'],
-        'urlImagen.y': ['https://logoeps.com/wp-content/uploads/2013/03/gimnasia-la-plata-vector-logo.png',
-                       'https://logoeps.com/wp-content/uploads/2013/03/san-lorenzo-vector-logo.png',
-                       'https://logoeps.com/wp-content/uploads/2013/03/river-plate-vector-logo.png',
-                       'https://logoeps.com/wp-content/uploads/2013/03/huracan-vector-logo.png',
-                       'https://logoeps.com/wp-content/uploads/2013/03/boca-juniors-vector-logo.png',
-                       None, None, None, None, None, None],
-        'liga': ['Primera División', 'Primera División', 'Primera División', 'Primera División',
-                'Primera División', 'Primera División', 'Primera División', 'Primera División',
-                'Primera División', 'Primera División', 'Primera División'],
-        'fechaNacimiento': ['2006-03-15', '2008-07-20', '2006-01-10', '2005-11-25',
-                           '2007-05-30', '2004-09-12', '2003-12-08', '2004-04-18',
-                           '2006-08-22', '2006-02-14', '2004-10-03'],
-        'urlImagen.x': [None, None, None, None, None, None, None, None, None, None, None]
+# Función para detectar nombres de columnas automáticamente
+def detect_column_names(df):
+    column_mapping = {
+        'jugador': None,
+        'posicion': None,
+        'altura': None,
+        'nacionalidad': None,
+        'equipo': None,
+        'logo_equipo': None,
+        'liga': None,
+        'fecha_nacimiento': None,
+        'foto_jugador': None
     }
-    return pd.DataFrame(data)
+    
+    columns_lower = {col.lower(): col for col in df.columns}
+    
+    # Detectar columna de jugador
+    for key in ['jugador', 'nombre', 'player', 'name']:
+        if key in columns_lower:
+            column_mapping['jugador'] = columns_lower[key]
+            break
+    
+    # Detectar columna de posición
+    for key in ['pos_principal', 'posicion', 'posición', 'position', 'pos']:
+        if key in columns_lower:
+            column_mapping['posicion'] = columns_lower[key]
+            break
+    
+    # Detectar columna de equipo
+    for key in ['equipo', 'team', 'club']:
+        if key in columns_lower:
+            column_mapping['equipo'] = columns_lower[key]
+            break
+    
+    # Detectar columna de altura
+    for key in ['altura', 'height', 'alt']:
+        if key in columns_lower:
+            column_mapping['altura'] = columns_lower[key]
+            break
+    
+    # Detectar columna de nacionalidad
+    for key in ['areanacimiento_nombre', 'nacionalidad', 'nationality', 'pais']:
+        if key in columns_lower:
+            column_mapping['nacionalidad'] = columns_lower[key]
+            break
+    
+    # Detectar columna de logo equipo
+    for key in ['urlimagen.y', 'logo_equipo', 'logo', 'team_logo']:
+        if key in columns_lower:
+            column_mapping['logo_equipo'] = columns_lower[key]
+            break
+    
+    # Detectar columna de liga
+    for key in ['liga', 'league', 'competition']:
+        if key in columns_lower:
+            column_mapping['liga'] = columns_lower[key]
+            break
+    
+    # Detectar columna de fecha nacimiento
+    for key in ['fechanacimiento', 'fecha_nacimiento', 'birthdate', 'birth_date']:
+        if key in columns_lower:
+            column_mapping['fecha_nacimiento'] = columns_lower[key]
+            break
+    
+    # Detectar columna de foto jugador
+    for key in ['urlimagen.x', 'foto_jugador', 'photo', 'player_photo']:
+        if key in columns_lower:
+            column_mapping['foto_jugador'] = columns_lower[key]
+            break
+    
+    return column_mapping
 
-# Función para cargar tu Excel (descomenta cuando tengas el archivo)
+# Función para cargar Excel con detección automática
 def load_excel_data(uploaded_file):
-    """
-    Carga y procesa tu archivo Excel
-    """
     df = pd.read_excel(uploaded_file)
     
-    # Procesar fechas de nacimiento para extraer año
-    df['año_nacimiento'] = df['fechaNacimiento'].apply(extract_year_from_date)
+    col_map = detect_column_names(df)
     
-    # Calcular edad
-    current_year = datetime.now().year
-    df['edad'] = current_year - df['año_nacimiento']
+    rename_dict = {}
+    if col_map['jugador']:
+        rename_dict[col_map['jugador']] = 'Jugador'
+    if col_map['posicion']:
+        rename_dict[col_map['posicion']] = 'Pos_Original'
+    if col_map['equipo']:
+        rename_dict[col_map['equipo']] = 'Equipo'
+    if col_map['altura']:
+        rename_dict[col_map['altura']] = 'altura'
+    if col_map['nacionalidad']:
+        rename_dict[col_map['nacionalidad']] = 'Nacionalidad'
+    if col_map['logo_equipo']:
+        rename_dict[col_map['logo_equipo']] = 'urlImagen.y'
+    if col_map['liga']:
+        rename_dict[col_map['liga']] = 'liga'
+    if col_map['fecha_nacimiento']:
+        rename_dict[col_map['fecha_nacimiento']] = 'fechaNacimiento'
+    if col_map['foto_jugador']:
+        rename_dict[col_map['foto_jugador']] = 'urlImagen.x'
     
-    return df
+    df = df.rename(columns=rename_dict)
+    
+    if 'fechaNacimiento' in df.columns:
+        df['año_nacimiento'] = df['fechaNacimiento'].apply(extract_year_from_date)
+        current_year = datetime.now().year
+        df['edad'] = current_year - df['año_nacimiento']
+    
+    return df, col_map
 
-# Cargar datos
+# Sidebar para cargar datos
 st.sidebar.header("📁 CARGAR DATOS")
 uploaded_file = st.sidebar.file_uploader("Sube tu archivo Excel", type=['xlsx', 'xls'])
 
 if uploaded_file is not None:
     try:
-        df = load_excel_data(uploaded_file)
+        df, column_mapping = load_excel_data(uploaded_file)
         st.sidebar.success("✅ Archivo cargado correctamente!")
+        
+        with st.sidebar.expander("🔍 Columnas detectadas"):
+            for key, value in column_mapping.items():
+                if value:
+                    st.text(f"{key}: ✅ {value}")
+                else:
+                    st.text(f"{key}: ❌ No detectada")
+        
     except Exception as e:
         st.sidebar.error(f"❌ Error al cargar archivo: {e}")
-        df = load_sample_data()  # Usar datos de ejemplo
+        st.stop()
 else:
-    st.sidebar.info("📝 Usando datos de ejemplo")
-    df = load_sample_data()
-    # Procesar datos de ejemplo
-    df['año_nacimiento'] = df['fechaNacimiento'].apply(extract_year_from_date)
-    df['edad'] = datetime.now().year - df['año_nacimiento']
+    st.sidebar.warning("⚠️ Por favor sube tu archivo Excel para continuar")
+    st.info("👆 Sube tu archivo Excel en el panel lateral izquierdo")
+    st.stop()
 
-# Sidebar con filtros
+# Filtros globales
 st.sidebar.markdown('<div class="filter-box">', unsafe_allow_html=True)
-st.sidebar.header("🔍 FILTROS")
+st.sidebar.header("🔍 FILTROS GLOBALES")
 
-# Filtros
 ligas_disponibles = df['liga'].unique()
-liga_seleccionada = st.sidebar.selectbox("📊 Seleccionar Liga:", ligas_disponibles)
+liga_seleccionada = st.sidebar.selectbox("📊 Liga:", ligas_disponibles)
 
-# Filtrar por liga primero
 df_liga = df[df['liga'] == liga_seleccionada]
 
-# Filtro por nacionalidad
-nacionalidades = df_liga['areaNacimiento_nombre'].unique()
-nacionalidades_seleccionadas = st.sidebar.multiselect(
-    "🌍 Nacionalidades:", 
-    nacionalidades, 
-    default=nacionalidades
-)
-
-# Sin filtros de altura ni edad por ahora
+if 'Nacionalidad' in df_liga.columns:
+    nacionalidades = ['Todas'] + sorted(df_liga['Nacionalidad'].dropna().unique().tolist())
+    nacionalidad_filtro = st.sidebar.selectbox("🌍 Nacionalidad:", nacionalidades)
+    
+    if nacionalidad_filtro != 'Todas':
+        df_disponible = df_liga[df_liga['Nacionalidad'] == nacionalidad_filtro]
+    else:
+        df_disponible = df_liga
+else:
+    df_disponible = df_liga
 
 st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
-# Aplicar filtros (sin altura ni edad)
-df_filtrado = df_liga[
-    (df_liga['areaNacimiento_nombre'].isin(nacionalidades_seleccionadas))
-]
-
-# Función para obtener TOP 3 por posición (simulando ranking por año nacimiento)
-def get_top3_by_position(df, position):
-    pos_players = df[df['Posición'] == position]
-    if len(pos_players) == 0:
-        return pd.DataFrame()
-    
-    # Ordenar por año nacimiento (más jóvenes primero) como criterio de ejemplo
-    # Puedes cambiar esto por cualquier métrica que tengas
-    top3 = pos_players.nsmallest(3, 'año_nacimiento')
-    return top3
+# Botón para limpiar selecciones
+if st.sidebar.button("🗑️ LIMPIAR TODAS LAS SELECCIONES", type="secondary"):
+    st.session_state.selected_players = {
+        'Arquero': [],
+        'Defensor Central': [],
+        'Lateral Izquierdo': [],
+        'Lateral Derecho': [],
+        'Mediocampista': [],
+        'Delantero': []
+    }
+    st.rerun()
 
 # Función para crear la cancha con jugadores
-def create_pitch_with_players(top_players_dict):
-    # Crear la cancha
+def create_pitch_with_players(selected_dict, df):
     fig, ax = plt.subplots(figsize=(16, 11))
     pitch = Pitch(
         pitch_type='opta',
@@ -194,7 +271,6 @@ def create_pitch_with_players(top_players_dict):
     )
     pitch.draw(ax=ax)
     
-    # Posiciones en la cancha (coordenadas Opta: 0-100 x, 0-100 y)
     positions = {
         'Arquero': [(10, 50)],
         'Defensor Central': [(25, 35), (25, 50), (25, 65)],
@@ -204,7 +280,6 @@ def create_pitch_with_players(top_players_dict):
         'Delantero': [(80, 35), (80, 50), (80, 65)]
     }
     
-    # Colores por posición
     colors = {
         'Arquero': '#FFD700',
         'Defensor Central': '#4169E1',
@@ -214,57 +289,60 @@ def create_pitch_with_players(top_players_dict):
         'Delantero': '#FF4500'
     }
     
-    # Agregar jugadores a la cancha
     for position, coords in positions.items():
-        if position in top_players_dict:
-            players = top_players_dict[position]
-            for i, (x, y) in enumerate(coords[:len(players)]):
-                if i < len(players):
-                    player = players.iloc[i]
+        if position in selected_dict and selected_dict[position]:
+            player_names = selected_dict[position]
+            for i, (x, y) in enumerate(coords[:len(player_names)]):
+                if i < len(player_names):
+                    player_data = df[df['Jugador'] == player_names[i]]
                     
-                    # Círculo para el jugador
-                    circle = plt.Circle((x, y), 4, 
-                                      color=colors[position], 
-                                      alpha=0.9, 
-                                      zorder=10,
-                                      edgecolor='white',
-                                      linewidth=2)
-                    ax.add_patch(circle)
-                    
-                    # Nombre del jugador
-                    ax.text(x, y-9, f"{player['Jugador']}", 
-                           ha='center', va='top', 
-                           fontsize=9, fontweight='bold',
-                           color='white',
-                           bbox=dict(boxstyle="round,pad=0.3", 
-                                   facecolor='black', 
-                                   alpha=0.8))
-                    
-                    # Año, altura y edad
-                    info_text = f"({player['año_nacimiento']}) - {player['altura']}m - {player['edad']} años"
-                    ax.text(x, y+9, info_text, 
-                           ha='center', va='bottom',
-                           fontsize=8,
-                           color='white',
-                           bbox=dict(boxstyle="round,pad=0.2", 
-                                   facecolor=colors[position], 
-                                   alpha=0.9))
-                    
-                    # Logo del equipo (si existe)
-                    if not pd.isna(player['urlImagen.y']) and player['urlImagen.y'] != '':
-                        try:
-                            logo_img = load_image_from_url(player['urlImagen.y'], size=(25, 25))
-                            if logo_img:
-                                # Convertir PIL a array para matplotlib
-                                import numpy as np
-                                logo_array = np.array(logo_img)
-                                imagebox = OffsetImage(logo_array, zoom=0.5)
-                                ab = AnnotationBbox(imagebox, (x+6, y+6), frameon=False)
-                                ax.add_artist(ab)
-                        except:
-                            pass  # Si falla cargar logo, continúa sin él
+                    if not player_data.empty:
+                        player = player_data.iloc[0]
+                        
+                        circle = plt.Circle((x, y), 4, 
+                                          color=colors[position], 
+                                          alpha=0.9, 
+                                          zorder=10,
+                                          edgecolor='white',
+                                          linewidth=2)
+                        ax.add_patch(circle)
+                        
+                        ax.text(x, y-9, f"{player['Jugador']}", 
+                               ha='center', va='top', 
+                               fontsize=9, fontweight='bold',
+                               color='white',
+                               bbox=dict(boxstyle="round,pad=0.3", 
+                                       facecolor='black', 
+                                       alpha=0.8))
+                        
+                        info_parts = []
+                        if 'año_nacimiento' in player and not pd.isna(player['año_nacimiento']):
+                            info_parts.append(f"({int(player['año_nacimiento'])})")
+                        if 'edad' in player and not pd.isna(player['edad']):
+                            info_parts.append(f"{int(player['edad'])} años")
+                        
+                        info_text = " - ".join(info_parts) if info_parts else "N/A"
+                        
+                        ax.text(x, y+9, info_text, 
+                               ha='center', va='bottom',
+                               fontsize=8,
+                               color='white',
+                               bbox=dict(boxstyle="round,pad=0.2", 
+                                       facecolor=colors[position], 
+                                       alpha=0.9))
+                        
+                        if 'urlImagen.y' in player and not pd.isna(player['urlImagen.y']) and player['urlImagen.y'] != '':
+                            try:
+                                logo_img = load_image_from_url(player['urlImagen.y'], size=(25, 25))
+                                if logo_img:
+                                    import numpy as np
+                                    logo_array = np.array(logo_img)
+                                    imagebox = OffsetImage(logo_array, zoom=0.5)
+                                    ab = AnnotationBbox(imagebox, (x+6, y+6), frameon=False)
+                                    ax.add_artist(ab)
+                            except:
+                                pass
     
-    # Título
     ax.text(50, 108, f"EQUIPO 11 IDEAL", 
            ha='center', va='bottom',
            fontsize=18, fontweight='bold',
@@ -275,7 +353,6 @@ def create_pitch_with_players(top_players_dict):
            fontsize=14, fontweight='bold',
            color='white')
     
-    # Fecha
     fecha_actual = datetime.now().strftime("%m/%Y")
     ax.text(90, -3, fecha_actual, 
            ha='center', va='bottom',
@@ -292,48 +369,115 @@ def create_pitch_with_players(top_players_dict):
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    st.subheader("📋 TOP 3 POR POSICIÓN")
+    st.subheader("🎯 SELECCIÓN MANUAL DE JUGADORES")
+    st.info("💡 Selecciona hasta 3 jugadores por posición. La posición original es solo referencia.")
     
     posiciones = ['Arquero', 'Defensor Central', 'Lateral Izquierdo', 
                  'Lateral Derecho', 'Mediocampista', 'Delantero']
     
-    top_players_dict = {}
-    
     for posicion in posiciones:
-        with st.expander(f"⚽ {posicion}", expanded=True):
-            top3 = get_top3_by_position(df_filtrado, posicion)
-            if not top3.empty:
-                top_players_dict[posicion] = top3
-                for idx, player in top3.iterrows():
-                    st.markdown(f"""
-                    <div class="player-card">
-                        <strong>{player['Jugador']}</strong> ({player['año_nacimiento']}) - {player['edad']} años
-                        <br>📏 {player['altura']}m | 🌍 {player['areaNacimiento_nombre']}
-                    </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.warning("No hay jugadores disponibles")
+        st.markdown(f"### ⚽ {posicion}")
+        
+        # Filtro de búsqueda por nombre
+        col_search, col_equipo = st.columns([2, 1])
+        
+        with col_search:
+            search_key = f"search_{posicion}"
+            buscar_nombre = st.text_input(
+                "🔍 Buscar por nombre:", 
+                key=search_key,
+                placeholder="Escribe el nombre..."
+            )
+        
+        with col_equipo:
+            if 'Equipo' in df_disponible.columns:
+                equipos = ['Todos'] + sorted(df_disponible['Equipo'].dropna().unique().tolist())
+                equipo_filtro = st.selectbox(
+                    "🏆 Equipo:",
+                    equipos,
+                    key=f"equipo_{posicion}"
+                )
+        
+        # Aplicar filtros
+        df_filtered = df_disponible.copy()
+        
+        if buscar_nombre:
+            df_filtered = df_filtered[
+                df_filtered['Jugador'].str.contains(buscar_nombre, case=False, na=False)
+            ]
+        
+        if 'Equipo' in df_filtered.columns and equipo_filtro != 'Todos':
+            df_filtered = df_filtered[df_filtered['Equipo'] == equipo_filtro]
+        
+        # Crear lista de jugadores disponibles
+        jugadores_disponibles = df_filtered['Jugador'].tolist()
+        
+        # Agregar info de posición original si existe
+        if 'Pos_Original' in df_filtered.columns:
+            jugadores_con_pos = [
+                f"{row['Jugador']} ({row['Pos_Original']})" 
+                if not pd.isna(row['Pos_Original']) 
+                else row['Jugador']
+                for _, row in df_filtered.iterrows()
+            ]
+        else:
+            jugadores_con_pos = jugadores_disponibles
+        
+        # Multiselect para elegir hasta 3 jugadores
+        selected = st.multiselect(
+            f"Selecciona hasta 3 jugadores:",
+            jugadores_con_pos,
+            default=[
+                f"{j} ({df_disponible[df_disponible['Jugador']==j]['Pos_Original'].iloc[0]})" 
+                if 'Pos_Original' in df_disponible.columns and not df_disponible[df_disponible['Jugador']==j].empty
+                and not pd.isna(df_disponible[df_disponible['Jugador']==j]['Pos_Original'].iloc[0])
+                else j
+                for j in st.session_state.selected_players[posicion] 
+                if j in jugadores_disponibles
+            ],
+            max_selections=3,
+            key=f"select_{posicion}"
+        )
+        
+        # Extraer solo los nombres (quitar la posición entre paréntesis)
+        selected_names = [s.split(' (')[0] for s in selected]
+        st.session_state.selected_players[posicion] = selected_names
+        
+        # Mostrar seleccionados
+        if selected_names:
+            st.success(f"✅ {len(selected_names)} jugador(es) seleccionado(s)")
+            for name in selected_names:
+                player_info = df_disponible[df_disponible['Jugador'] == name]
+                if not player_info.empty:
+                    p = player_info.iloc[0]
+                    info_text = f"**{name}**"
+                    if 'Equipo' in p:
+                        info_text += f" - {p['Equipo']}"
+                    if 'edad' in p and not pd.isna(p['edad']):
+                        info_text += f" ({int(p['edad'])} años)"
+                    st.markdown(info_text)
+        
+        st.markdown("---")
 
 with col2:
     st.subheader("🏟️ CANCHA INTERACTIVA")
     
-    if top_players_dict:
-        # Crear y mostrar la cancha
-        fig = create_pitch_with_players(top_players_dict)
+    # Contar jugadores seleccionados
+    total_selected = sum(len(players) for players in st.session_state.selected_players.values())
+    
+    if total_selected > 0:
+        fig = create_pitch_with_players(st.session_state.selected_players, df)
         st.pyplot(fig)
         
-        # Botón para exportar
         col_export1, col_export2 = st.columns(2)
         
         with col_export1:
             if st.button("📄 EXPORTAR PNG", type="primary"):
-                # Convertir matplotlib a imagen
                 img_buffer = io.BytesIO()
                 fig.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight',
                            facecolor='#2d8f2d', edgecolor='none')
                 img_buffer.seek(0)
                 
-                # Crear enlace de descarga
                 b64 = base64.b64encode(img_buffer.getvalue()).decode()
                 href = f'<a href="data:image/png;base64,{b64}" download="equipo_11_ideal_{liga_seleccionada.replace(" ", "_")}.png">📥 Descargar PNG</a>'
                 st.markdown(href, unsafe_allow_html=True)
@@ -341,17 +485,27 @@ with col2:
         
         with col_export2:
             if st.button("📋 EXPORTAR LISTA"):
-                # Crear lista de jugadores seleccionados
                 lista_jugadores = []
-                for pos, players in top_players_dict.items():
-                    for idx, player in players.iterrows():
-                        lista_jugadores.append({
-                            'Posición': pos,
-                            'Jugador': player['Jugador'],
-                            'Año': player['año_nacimiento'],
-                            'Altura': player['altura'],
-                            'Nacionalidad': player['areaNacimiento_nombre']
-                        })
+                for pos, players in st.session_state.selected_players.items():
+                    for player_name in players:
+                        player_data = df[df['Jugador'] == player_name]
+                        if not player_data.empty:
+                            p = player_data.iloc[0]
+                            player_dict = {
+                                'Posición_Seleccionada': pos,
+                                'Jugador': player_name
+                            }
+                            if 'Pos_Original' in p:
+                                player_dict['Posición_Original'] = p['Pos_Original']
+                            if 'Equipo' in p:
+                                player_dict['Equipo'] = p['Equipo']
+                            if 'año_nacimiento' in p:
+                                player_dict['Año'] = p['año_nacimiento']
+                            if 'edad' in p:
+                                player_dict['Edad'] = p['edad']
+                            if 'Nacionalidad' in p:
+                                player_dict['Nacionalidad'] = p['Nacionalidad']
+                            lista_jugadores.append(player_dict)
                 
                 df_export = pd.DataFrame(lista_jugadores)
                 csv = df_export.to_csv(index=False)
@@ -359,42 +513,16 @@ with col2:
                 href = f'<a href="data:file/csv;base64,{b64}" download="top_jugadores_{liga_seleccionada.replace(" ", "_")}.csv">📥 Descargar CSV</a>'
                 st.markdown(href, unsafe_allow_html=True)
                 st.success("✅ Lista CSV generada!")
+        
+        st.metric("👥 Jugadores Seleccionados", total_selected)
     else:
-        st.info("🔍 Ajusta los filtros para ver jugadores disponibles")
-
-# Estadísticas generales
-st.markdown("---")
-col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-
-with col_stat1:
-    st.metric("👥 Jugadores Filtrados", len(df_filtrado))
-
-with col_stat2:
-    st.metric("🌍 Nacionalidades", len(df_filtrado['areaNacimiento_nombre'].unique()))
-
-with col_stat3:
-    if not df_filtrado.empty:
-        st.metric("📏 Altura Promedio", f"{df_filtrado['altura'].mean():.2f}m")
-
-with col_stat4:
-    if not df_filtrado.empty:
-        st.metric("🎂 Edad Promedio", f"{df_filtrado['edad'].mean():.1f} años")
-
-# Vista previa de datos
-with st.expander("👀 Vista Previa de Datos"):
-    if not df_filtrado.empty:
-        st.dataframe(
-            df_filtrado[['Jugador', 'Posición', 'altura', 'areaNacimiento_nombre', 'año_nacimiento', 'edad']],
-            use_container_width=True
-        )
-    else:
-        st.info("No hay datos para mostrar con los filtros actuales")
+        st.info("👈 Selecciona jugadores en el panel izquierdo para ver la formación")
 
 # Footer
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666;'>
     <p>⚽ Scout App 2025 | Powered by Streamlit + mplsoccer</p>
-    <p>📁 Sube tu Excel para usar datos reales</p>
+    <p>💡 Sistema de selección manual - Tú decides la posición</p>
 </div>
 """, unsafe_allow_html=True)
