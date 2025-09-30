@@ -230,17 +230,21 @@ else:
 st.sidebar.markdown('<div class="filter-box">', unsafe_allow_html=True)
 st.sidebar.header("🔍 FILTROS GLOBALES")
 
-ligas_disponibles = df['liga'].unique()
-liga_seleccionada = st.sidebar.selectbox("📊 Liga:", ligas_disponibles)
+ligas_disponibles = sorted(df['liga'].unique())
+liga_seleccionada = st.sidebar.selectbox("📊 Seleccionar Liga:", ligas_disponibles)
 
 df_liga = df[df['liga'] == liga_seleccionada]
 
+# Mostrar cantidad de jugadores en la liga
+st.sidebar.metric("👥 Jugadores disponibles", len(df_liga))
+
 if 'Nacionalidad' in df_liga.columns:
     nacionalidades = ['Todas'] + sorted(df_liga['Nacionalidad'].dropna().unique().tolist())
-    nacionalidad_filtro = st.sidebar.selectbox("🌍 Nacionalidad:", nacionalidades)
+    nacionalidad_filtro = st.sidebar.selectbox("🌍 Filtrar por Nacionalidad:", nacionalidades)
     
     if nacionalidad_filtro != 'Todas':
         df_disponible = df_liga[df_liga['Nacionalidad'] == nacionalidad_filtro]
+        st.sidebar.caption(f"🔎 {len(df_disponible)} jugadores de {nacionalidad_filtro}")
     else:
         df_disponible = df_liga
 else:
@@ -376,27 +380,29 @@ with col1:
                  'Lateral Derecho', 'Mediocampista', 'Delantero']
     
     for posicion in posiciones:
-        st.markdown(f"### ⚽ {posicion}")
-        
-        # Filtro de búsqueda por nombre
-        col_search, col_equipo = st.columns([2, 1])
-        
-        with col_search:
-            search_key = f"search_{posicion}"
-            buscar_nombre = st.text_input(
-                "🔍 Buscar por nombre:", 
-                key=search_key,
-                placeholder="Escribe el nombre..."
-            )
-        
-        with col_equipo:
-            if 'Equipo' in df_disponible.columns:
-                equipos = ['Todos'] + sorted(df_disponible['Equipo'].dropna().unique().tolist())
-                equipo_filtro = st.selectbox(
-                    "🏆 Equipo:",
-                    equipos,
-                    key=f"equipo_{posicion}"
+        with st.expander(f"⚽ {posicion}", expanded=len(st.session_state.selected_players[posicion]) > 0):
+            
+            # Filtro de búsqueda por nombre
+            col_search, col_equipo = st.columns([3, 2])
+            
+            with col_search:
+                search_key = f"search_{posicion}"
+                buscar_nombre = st.text_input(
+                    "🔍 Buscar jugador:", 
+                    key=search_key,
+                    placeholder="Nombre del jugador...",
+                    label_visibility="collapsed"
                 )
+            
+            with col_equipo:
+                if 'Equipo' in df_disponible.columns:
+                    equipos = ['Todos'] + sorted(df_disponible['Equipo'].dropna().unique().tolist())
+                    equipo_filtro = st.selectbox(
+                        "🏆 Filtrar por equipo:",
+                        equipos,
+                        key=f"equipo_{posicion}",
+                        label_visibility="collapsed"
+                    )
         
         # Aplicar filtros
         df_filtered = df_disponible.copy()
@@ -425,7 +431,7 @@ with col1:
         
         # Multiselect para elegir hasta 3 jugadores
         selected = st.multiselect(
-            f"Selecciona hasta 3 jugadores:",
+            f"✅ Elegir jugadores para {posicion}:",
             jugadores_con_pos,
             default=[
                 f"{j} ({df_disponible[df_disponible['Jugador']==j]['Pos_Original'].iloc[0]})" 
@@ -436,28 +442,41 @@ with col1:
                 if j in jugadores_disponibles
             ],
             max_selections=3,
-            key=f"select_{posicion}"
+            key=f"select_{posicion}",
+            help="Selecciona máximo 3 jugadores"
         )
         
         # Extraer solo los nombres (quitar la posición entre paréntesis)
         selected_names = [s.split(' (')[0] for s in selected]
         st.session_state.selected_players[posicion] = selected_names
         
-        # Mostrar seleccionados
+        # Mostrar seleccionados con info
         if selected_names:
-            st.success(f"✅ {len(selected_names)} jugador(es) seleccionado(s)")
-            for name in selected_names:
+            st.success(f"✅ {len(selected_names)}/3 seleccionados")
+            for idx, name in enumerate(selected_names, 1):
                 player_info = df_disponible[df_disponible['Jugador'] == name]
                 if not player_info.empty:
                     p = player_info.iloc[0]
-                    info_text = f"**{name}**"
-                    if 'Equipo' in p:
-                        info_text += f" - {p['Equipo']}"
-                    if 'edad' in p and not pd.isna(p['edad']):
-                        info_text += f" ({int(p['edad'])} años)"
-                    st.markdown(info_text)
-        
-        st.markdown("---")
+                    
+                    col_num, col_info = st.columns([1, 11])
+                    with col_num:
+                        st.markdown(f"**#{idx}**")
+                    with col_info:
+                        info_parts = [f"**{name}**"]
+                        
+                        detail_parts = []
+                        if 'Equipo' in p and not pd.isna(p['Equipo']):
+                            detail_parts.append(f"🏆 {p['Equipo']}")
+                        if 'edad' in p and not pd.isna(p['edad']):
+                            detail_parts.append(f"🎂 {int(p['edad'])} años")
+                        if 'Pos_Original' in p and not pd.isna(p['Pos_Original']):
+                            detail_parts.append(f"📍 Pos. Original: {p['Pos_Original']}")
+                        
+                        st.markdown(f"{' '.join(info_parts)}")
+                        if detail_parts:
+                            st.caption(" | ".join(detail_parts))
+        else:
+            st.warning("⚠️ No hay jugadores seleccionados para esta posición")
 
 with col2:
     st.subheader("🏟️ CANCHA INTERACTIVA")
